@@ -7,10 +7,9 @@ for i in range(0, 2):
         from diff_match_patch import diff_match_patch
         import werkzeug.routing
         import werkzeug.debug
-        import flask_reggie
-        import wsgiref.simple_server
         import urllib.request
         import email.mime.text
+        import requests
         import sqlite3
         import pymysql
         import hashlib
@@ -25,9 +24,6 @@ for i in range(0, 2):
         import json
         import html
         import re
-
-        if sys.version_info < (3, 6):
-            import sha3
 
         from .mark import *
     except ImportError as e:
@@ -261,14 +257,31 @@ def update(ver_num, set_data):
                 get_data[2]
             ])
 
-    if ver_num < 3202200:
-        curs.execute(db_change('delete from cache_data'))
-
     if ver_num < 3202400:
         curs.execute(db_change("select data from other where name = 'update'"))
         get_data = curs.fetchall()
         if get_data and get_data[0][0] == 'master':
             curs.execute(db_change("update other set data = 'beta' where name = 'update'"), [])
+
+    if ver_num < 3202500:
+        curs.execute(db_change('delete from cache_data'))
+
+    if ver_num < 3202600:
+        curs.execute(db_change("select name, regex, sub from filter"))
+        for i in curs.fetchall():
+            curs.execute(db_change("insert into html_filter (html, kind, plus, plus_t) values (?, 'regex_filter', ?, ?)"), [
+                i[0], 
+                i[1],
+                i[2]
+            ])
+
+        curs.execute(db_change("select title, link, icon from inter"))
+        for i in curs.fetchall():
+            curs.execute(db_change("insert into html_filter (html, kind, plus, plus_t) values (?, 'inter_wiki', ?, ?)"), [
+                i[0], 
+                i[1],
+                i[2]
+            ])
 
     conn.commit()
 
@@ -512,27 +525,29 @@ def next_fix(link, num, page, end = 50):
 
 def other2(data):
     global req_list
-    main_css_ver = '51'
+    main_css_ver = '53'
     data += ['' for _ in range(0, 3 - len(data))]
 
     if req_list == '':
         for i_data in os.listdir(os.path.join("views", "main_css", "css")):
-            req_list += '<link rel="stylesheet" href="/views/main_css/css/' + i_data + '?ver=' + main_css_ver + '">'
+            if i_data != 'sub':
+                req_list += '<link rel="stylesheet" href="/views/main_css/css/' + i_data + '?ver=' + main_css_ver + '">'
 
         for i_data in os.listdir(os.path.join("views", "main_css", "js")):
-            req_list += '<script src="/views/main_css/js/' + i_data + '?ver=' + main_css_ver + '"></script>'
+            if i_data != 'sub':
+                req_list += '<script src="/views/main_css/js/' + i_data + '?ver=' + main_css_ver + '"></script>'
 
     data = data[0:2] + ['', '''
         <link   rel="stylesheet"
-                href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/default.min.css">
+                href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.1.2/build/styles/default.min.css">
         <link   rel="stylesheet"
-                href="https://cdn.jsdelivr.net/npm/katex@0.10.1/dist/katex.min.css"
-                integrity="sha384-dbVIfZGuN1Yq7/1Ocstc1lUEm+AT+/rCkibIcC/OmWo5f0EA48Vf8CytHzGrSwbQ"
+                href="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css"
+                integrity="sha384-AfEj0r4/OFrOo5t7NnNe46zW/tFgW6x/bCJG8FqQCEo3+Aro6EYUG4+cU+KJWu/X"
                 crossorigin="anonymous">
-        <script src="https://cdn.jsdelivr.net/npm/katex@0.10.1/dist/katex.min.js"
-                integrity="sha384-2BKqo+exmr9su6dir+qCw08N2ZKRucY4PrGQPPWU1A7FtlCGjmEGFqXCv5nyM5Ij"
+        <script src="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js"
+                integrity="sha384-g7c+Jr9ZivxKLnZTDUhnkOnsh30B4H0rpLUpJ4jAIKs4fnJI+sEnkvrMWph2EDg4"
                 crossorigin="anonymous"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/highlight.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.1.2/build/highlight.min.js"></script>
         <script>window.addEventListener('DOMContentLoaded', function() { main_css_skin_load(); });</script>
     ''' + req_list] + data[2:]
 
@@ -687,25 +702,14 @@ def ip_pas(raw_ip, type_d = 0):
                 curs.execute(db_change("select data from other where name = 'ip_view'"))
                 data = curs.fetchall()
                 if data and data[0][0] != '':
-                    if re.search(r'\.', raw_ip):
-                        ip = re.sub(r'\.([^.]*)\.([^.]*)$', '.*.*', raw_ip)
-                    else:
-                        ip = re.sub(r':([^:]*):([^:]*)$', ':*:*', raw_ip)
-
-                    if not admin_check(1):
-                        hide = 1
+                    ip = re.sub(r'\.([^.]*)\.([^.]*)$', '.*.*', raw_ip) if re.search(r'\.', raw_ip) else re.sub(r':([^:]*):([^:]*)$', ':*:*', raw_ip)
+                    hide = 1 if not admin_check(1) else 0
                 else:
                     ip = raw_ip
             else:
                 if type_d == 0:
-                    curs.execute(db_change("select title from data where title = ?"), ['user:' + raw_ip])
-                    if curs.fetchall():
-                        ip = '<a href="/w/' + url_pas('user:' + raw_ip) + '">' + raw_ip + '</a>'
-                    else:
-                        ip = '<a id="not_thing" href="/w/' + url_pas('user:' + raw_ip) + '">' + raw_ip + '</a>'
-
-                    if admin_check('all', None, raw_ip) == 1:
-                        ip = '<b>' + ip + '</b>'
+                    ip = '<a href="/w/' + url_pas('user:' + raw_ip) + '">' + raw_ip + '</a>'
+                    ip = '<b>' + ip + '</b>' if admin_check('all', None, raw_ip) == 1 else ip
                 else:
                     ip = raw_ip
 
@@ -713,21 +717,17 @@ def ip_pas(raw_ip, type_d = 0):
                 if ban_check(raw_ip) == 1:
                     ip = '<s>' + ip + '</s>'
 
-                if hide == 0:
-                    ip += ' <a href="/tool/' + url_pas(raw_ip) + '">(' + load_lang('tool') + ')</a>'
+                    if ban_check(raw_ip, 'login') == 1:
+                        ip = '<i>' + ip + '</i>'
+
+                ip = (ip + ' <a href="/tool/' + url_pas(raw_ip) + '">(' + load_lang('tool') + ')</a>') if hide == 0 else ip
         
             end_ip[raw_ip] = ip
 
     return ip if return_ip == 1 else end_ip
 
 def custom():
-    if 'head' in flask.session:
-        if len(re.findall('<', flask.session['head'])) % 2 != 1:
-            user_head = flask.session['head']
-        else:
-            user_head = ''
-    else:
-        user_head = ''
+    user_head = flask.session['head'] if 'head' in flask.session else ''
 
     ip = ip_check()
     if ip_or_user(ip) == 0:
@@ -748,20 +748,14 @@ def custom():
             for i in user_acl:
                 user_acl_list += [i[0]]
 
-            if user_acl != []:
-                user_acl_list = user_acl_list
-            else:
-                user_acl_list = '0'
+            user_acl_list = user_acl_list if user_acl != [] else '0'
         else:
             user_admin = '0'
             user_acl_list = '0'
 
         curs.execute(db_change("select count(*) from alarm where name = ?"), [ip])
         count = curs.fetchall()
-        if count:
-            user_notice = str(count[0][0])
-        else:
-            user_notice = '0'
+        user_notice = str(count[0][0]) if count else '0'
     else:
         user_icon = 0
         user_name = load_lang('user')
@@ -938,7 +932,9 @@ def acl_check(name = 'test', tool = '', topic_num = '1'):
             num = 5
 
         acl_data = curs.fetchall()
-        if (not acl_data and i == (end - 1)) and get_ban == 1 and tool != 'render':
+        if  (i == (end - 1) and (not acl_data or acl_data[0][0] == '' or acl_data[0][0] == 'normal')) and \
+            get_ban == 1 and \
+            tool != 'render':
             return 1
         elif acl_data and acl_data[0][0] != 'normal' and acl_data[0][0] != '':
             if acl_data[0][0] != 'ban' and get_ban == 1 and tool != 'render':
@@ -1015,8 +1011,7 @@ def acl_check(name = 'test', tool = '', topic_num = '1'):
     return 1
 
 def ban_check(ip = None, tool = None):
-    if not ip:
-        ip = ip_check()
+    ip = ip_check() if not ip else ip
 
     if admin_check(None, None, ip) == 1:
         return 0
@@ -1054,14 +1049,9 @@ def ban_check(ip = None, tool = None):
 
 def ban_insert(name, end, why, login, blocker, type_d = None):
     now_time = get_time()
-
-    if type_d:
-        band = type_d
-    else:
-        band = ''
+    band = type_d if type_d else ''
 
     curs.execute(db_change("update rb set ongoing = '' where end < ? and end != '' and ongoing = '1'"), [now_time])
-
     curs.execute(db_change("" + \
         "select block from rb where ((end > ? and end != '') or end = '') and block = ? and band = ? and ongoing = '1'" + \
     ""), [now_time, name, band])
@@ -1076,27 +1066,24 @@ def ban_insert(name, end, why, login, blocker, type_d = None):
         ])
         curs.execute(db_change("update rb set ongoing = '' where block = ? and band = ? and ongoing = '1'"), [name, band])
     else:
-        if login != '':
-            login = 'O'
-        else:
-            login = ''
+        login = 'O' if login != '' else ''
 
         if end != '0':
             end = int(number_check(end))
-
             time = datetime.datetime.now()
             plus = datetime.timedelta(seconds = end)
             r_time = (time + plus).strftime("%Y-%m-%d %H:%M:%S")
         else:
             r_time = ''
 
-        curs.execute(db_change("insert into rb (block, end, today, blocker, why, band, ongoing) values (?, ?, ?, ?, ?, ?, '1')"), [
+        curs.execute(db_change("insert into rb (block, end, today, blocker, why, band, ongoing, login) values (?, ?, ?, ?, ?, ?, '1', ?)"), [
             name, 
             r_time, 
             now_time, 
             blocker, 
             why, 
-            band
+            band,
+            login
         ])
 
     conn.commit()
@@ -1171,7 +1158,7 @@ def number_check(data):
 
 def edit_filter_do(data):
     if admin_check(1) != 1:
-        curs.execute(db_change("select regex, sub from filter where regex != ''"))
+        curs.execute(db_change("select plus, plus_t from html_filter where kind = 'regex_filter' and plus != ''"))
         for data_list in curs.fetchall():
             match = re.compile(data_list[0], re.I)
             if match.search(data):
