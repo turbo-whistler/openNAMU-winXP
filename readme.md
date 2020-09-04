@@ -1,8 +1,11 @@
 물론 이제는 XP는 점유율이 1%도 안 되는것은 알고있죠. 당연히 PR가 아니고 개인이 쓰려고 가져왔읍니다(동일계정으로 포크는 한 번만 돼서...)
 
-쓰려~~고 할 사람이 있을지나 모르겠지만~~고 할 경우 암호화 방식은 SHA-256으로 합니다.
+쓰려고 할 ~~사람이 있을지나 모르겠지만~~ 경우 암호화 방식은 SHA-256으로 합니다.
 
 ![prev](https://github.com/turbo-whistler/openNAMU-winXP/blob/master/preview.bmp?raw=true)
+
+- - -
+이하는 원본 오픈나무의 README
 
 [(en-US)](./readme-en.md) | [(ko-KR)](./readme.md)
 # 오픈나무
