@@ -1,3 +1,6 @@
+물론 이제는 XP는 점유율이 1%도 안 되는것은 알고있죠. 당연히 PR가 아니고 개인이 쓰려고 가져왔읍니다(동일계정으로 포크는 한 번만 돼서...)
+![prev](https://github.com/turbo-whistler/openNAMU-winXP/blob/master/preview.bmp?raw=true)
+
 [(en-US)](./readme-en.md) | [(ko-KR)](./readme.md)
 # 오픈나무
 [![Python 3.5 이상](https://img.shields.io/badge/python->=%203.5-blue.svg)](https://python.org)
