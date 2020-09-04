@@ -36,7 +36,7 @@ def api_skin_info_2(conn, name):
 
             if json_data:
                 if i == skin_check(1):
-                    json_data = {json_data, { "main" : "true" }}
+                    json_data["main"] = "true"
 
                 if "info_link" in json_data:
                     info_link = json_data["info_link"]
@@ -57,12 +57,12 @@ def api_skin_info_2(conn, name):
                         try:
                             get_data = json.loads(get_data.read().decode())
                             if "skin_ver" in get_data:
-                                json_data = {json_data, { "lastest_version" : {
+                                json_data["lastest_version"] = {
                                     "skin_ver" : json_data["skin_ver"]
-                                }}}
+                                }
                         except:
                             pass
 
-                a_data = {a_data, { i : json_data }}
+                a_data[i] = json_data
 
         return flask.jsonify(a_data)
