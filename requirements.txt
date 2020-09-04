@@ -1,7 +1,12 @@
-tornado
 flask
-flask-Reggie
+urllib3
 requests
 pymysql
+werkzeug
+jinja2
+itsdangerous
+click
+chardet
+certifi
+idna
 diff-match-patch
-pysha3; python_version < "3.6"

@@ -1,3 +1,4 @@
+# Load
 import os
 import re
 
@@ -8,7 +9,7 @@ for i_data in os.listdir("route"):
 
         exec("from route." + f_src + " import *")
 
-# DB
+# Version
 version_list = json.loads(open('version.json', encoding = 'utf8').read())
 
 print('Version : ' + version_list['beta']['r_ver'])
@@ -16,6 +17,7 @@ print('DB set version : ' + version_list['beta']['c_ver'])
 print('Skin set version : ' + version_list['beta']['s_ver'])
 print('----')
 
+# DB
 while 1:
     try:
         set_data = json.loads(open('data/set.json', encoding = 'utf8').read())
@@ -79,35 +81,39 @@ if set_data['db_type'] == 'mysql':
     try:
         set_data_mysql = json.loads(open('data/mysql.json', encoding = 'utf8').read())
     except:
-        new_json = ['', '', '']
+        new_json = {}
 
         while 1:
             print('DB user ID : ', end = '')
-            new_json[0] = str(input())
-            if new_json[0] != '':
+            new_json['user'] = str(input())
+            if new_json['user'] != '':
                 break
 
         while 1:
             print('DB password : ', end = '')
-            new_json[1] = str(input())
-            if new_json[1] != '':
+            new_json['password'] = str(input())
+            if new_json['password'] != '':
                 break
                 
         print('DB host (localhost) : ', end = '')
-        new_json[2] = str(input())
-        if new_json[2] == '':
-            new_json[2] == 'localhost'
+        new_json['host'] = str(input())
+        new_json['host'] = 'localhost' if new_json['host'] == '' else new_json['host']
+
+        print('DB port (3306) : ', end = '')
+        new_json['port'] = str(input())
+        new_json['port'] = '3306' if new_json['port'] == '' else new_json['port']
 
         with open('data/mysql.json', 'w', encoding = 'utf8') as f:
-            f.write('{ "user" : "' + new_json[0] + '", "password" : "' + new_json[1] + '", "host" : "' + new_json[2] + '" }')
+            f.write(json.dumps(new_json))
 
-        set_data_mysql = json.loads(open('data/mysql.json', encoding = 'utf8').read())
+        set_data_mysql = new_json
 
     conn = pymysql.connect(
         host = set_data_mysql['host'] if 'host' in set_data_mysql else 'localhost',
         user = set_data_mysql['user'],
         password = set_data_mysql['password'],
-        charset = 'utf8mb4'
+        charset = 'utf8mb4',
+        port = int(set_data_mysql['port']) if 'port' in set_data_mysql else 3306
     )
     curs = conn.cursor()
 
@@ -118,11 +124,12 @@ if set_data['db_type'] == 'mysql':
 
     curs.execute(db_change('use ?')%pymysql.escape_string(set_data['db']))
 else:
-    conn = sqlite3.connect(set_data['db'] + '.db')
+    conn = sqlite3.connect(set_data['db'] + '.db', check_same_thread=False)
     curs = conn.cursor()
 
 load_conn(conn)
 
+# DB init
 create_data = {}
 create_data['data'] = ['title', 'data']
 create_data['cache_data'] = ['title', 'data', 'id']
@@ -141,13 +148,10 @@ create_data['alist'] = ['name', 'acl']
 create_data['re_admin'] = ['who', 'what', 'time']
 create_data['alarm'] = ['name', 'data', 'date']
 create_data['ua_d'] = ['name', 'ip', 'ua', 'today', 'sub']
-create_data['filter'] = ['name', 'regex', 'sub']
 create_data['scan'] = ['user', 'title', 'type']
 create_data['acl'] = ['title', 'decu', 'dis', 'view', 'why']
-create_data['inter'] = ['title', 'link', 'icon']
-create_data['html_filter'] = ['html', 'kind', 'plus']
+create_data['html_filter'] = ['html', 'kind', 'plus', 'plus_t']
 create_data['vote'] = ['name', 'id', 'subject', 'data', 'user', 'type', 'acl']
-# create_data['oauth_conn'] = ['provider', 'wiki_id', 'sns_id', 'name', 'picture']
 for i in create_data:
     try:
         curs.execute(db_change('select test from ' + i + ' limit 1'))
@@ -192,7 +196,7 @@ logging.basicConfig(level = logging.ERROR)
 app = flask.Flask(__name__, template_folder = './')
 app.config['JSON_AS_ASCII'] = False
 
-flask_reggie.Reggie(app)
+# flask_reggie.Reggie(app)
 
 class EverythingConverter(werkzeug.routing.PathConverter):
     regex = '.*?'
@@ -202,6 +206,16 @@ app.jinja_env.filters['load_lang'] = load_lang
 app.jinja_env.filters['cut_100'] = cut_100
 
 app.url_map.converters['everything'] = EverythingConverter
+
+from werkzeug.routing import BaseConverter
+# https://stackoverflow.com/questions/5870188/does-flask-support-regular-expressions-in-its-url-routing
+class RegexConverter(BaseConverter):
+    def __init__(self, url_map, *items):
+        super(RegexConverter, self).__init__(url_map)
+        self.regex = items[0]
+
+
+app.url_map.converters['regex'] = RegexConverter
 
 curs.execute(db_change('select name from alist where acl = "owner"'))
 if not curs.fetchall():
@@ -731,11 +745,13 @@ app.secret_key = rep_key
 app.wsgi_app = werkzeug.debug.DebuggedApplication(app.wsgi_app, True)
 app.debug = True
 
-# https://stackoverflow.com/questions/31433682/control-wsgiref-simple-server-log
-class NoLoggingWSGIRequestHandler(wsgiref.simple_server.WSGIRequestHandler):
-    def log_message(self, format, *args):
-        pass
-
-httpd = wsgiref.simple_server.make_server(server_set['host'], int(server_set['port']), app, handler_class = NoLoggingWSGIRequestHandler)
 if __name__ == "__main__":
-    httpd.serve_forever()
+    """
+    if sys.platform == 'win32' and sys.version_info[0:2] >= (3, 8):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    http_server = tornado.httpserver.HTTPServer(tornado.wsgi.WSGIContainer(app))
+    http_server.listen(int(server_set['port']), address = server_set['host'])
+    """
+
+    app.run(host=server_set['host'], port=server_set['port'])
