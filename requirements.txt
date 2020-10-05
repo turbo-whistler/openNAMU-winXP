@@ -8,5 +8,4 @@ itsdangerous
 click
 chardet
 certifi
-idna
 diff-match-patch
